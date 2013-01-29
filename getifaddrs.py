@@ -1,4 +1,10 @@
-# http://carnivore.it/2010/07/22/python_-_getifaddrs
+"""
+This code was found here:
+
+http://carnivore.it/2010/07/22/python_-_getifaddrs
+
+It has been modified.
+"""
 
 from ctypes import *
 from sys import platform
@@ -163,6 +169,7 @@ def getifaddrs():
             if ifa.ifa_netmask is not None:
                 si = sockaddr_in.from_address(ifa.ifa_netmask)
                 data['netmask'] = inet_ntop(AF_INET,si.sin_addr)
+            addr_type = 'ipv4'
  
         if sa.sa_family == AF_INET6:
             if ifa.ifa_addr is not None:
@@ -173,6 +180,7 @@ def getifaddrs():
             if ifa.ifa_netmask is not None:
                 si = sockaddr_in6.from_address(ifa.ifa_netmask)
                 data['netmask'] = inet_ntop(AF_INET6,si.sin6_addr)
+            addr_type = 'ipv6'
  
         if sa.sa_family == AF_PACKET:
             if ifa.ifa_addr is not None:
@@ -185,6 +193,7 @@ def getifaddrs():
                 addr = addr[:-1]
                 if total > 0:
                     data['addr'] = addr
+            addr_type = 'hw'
 
         if sa.sa_family == AF_LINK:
             dl = sockaddr_dl.from_address(ifa.ifa_addr)
@@ -194,11 +203,12 @@ def getifaddrs():
                     addr += "%02x:" % dl.sdl_data[dl.sdl_nlen+i]
                 addr = addr[:-1]
                 data['addr'] = addr
+            addr_type = 'hw'
  
         if len(data) > 0:
-            if sa.sa_family not in result[name]:
-                 result[name][sa.sa_family] = []
-            result[name][sa.sa_family].append(data)
+            if addr_type not in result[name]:
+                 result[name][addr_type] = []
+            result[name][addr_type].append(data)
  
         if ifa.ifa_next:
             ifa = ifaddrs.from_address(ifa.ifa_next)
