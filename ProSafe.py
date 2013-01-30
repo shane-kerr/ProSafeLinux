@@ -64,7 +64,7 @@ def hw_ntop(mac):
     mac_bytes = mac_bytes[0:2] + b':' + mac_bytes[2:4] + b':' + \
                 mac_bytes[4:6] + b':' + mac_bytes[6:8] + b':' + \
                 mac_bytes[8:10] + b':' + mac_bytes[10:12]
-    return mac_bytes.decode()
+    return str(mac_bytes.decode())
 
 def _build_header(msg_type, srcmac, dstmac, seq_num):
     header = struct.pack(">h", msg_type)
@@ -90,6 +90,10 @@ class _ProSafeOption:
         data = struct.pack(">H", self.option_id)
         data += struct.pack(">H", 0)
         return data
+    def parse_reply(self, data):
+        if len(data) != 0:
+            raise ProSafeBadPacket("unexpected data in option")
+        return None
 
 class _ProSafeOptionString(_ProSafeOption):
     def __init__(self, option_id, option_name, option_desc):
@@ -99,6 +103,8 @@ class _ProSafeOptionString(_ProSafeOption):
         data += struct.pack(">H", len(s))
         data += s.encode()
         return data
+    def parse_reply(self, data):
+        return str(data.decode())
 
 class _ProSafeOptionMAC(_ProSafeOption):
     def __init__(self, option_id, option_name, option_desc):
@@ -108,6 +114,10 @@ class _ProSafeOptionMAC(_ProSafeOption):
         data += struct.pack(">H", 6)
         data += hw_pton(mac)
         return data
+    def parse_reply(self, data):
+        if len(data) != 6:
+            raise ProSafeBadPacket("invalid MAC address")
+        return hw_ntop(data)
 
 class _ProSafeOptionIPv4(_ProSafeOption):
     def __init__(self, option_id, option_name, option_desc):
@@ -117,6 +127,10 @@ class _ProSafeOptionIPv4(_ProSafeOption):
         data += struct.pack(">H", 4)
         data += socket.inet_pton(socket.AF_INET, addr)
         return data
+    def parse_reply(self, data):
+        if len(data) != 4:
+            raise ProSafeBadPacket("invalid IPv4 address")
+        return socket.inet_ntop(socket.AF_INET, data)
 
 class _ProSafeOptionBoolean(_ProSafeOption):
     def __init__(self, option_id, option_name, option_desc):
@@ -128,6 +142,23 @@ class _ProSafeOptionBoolean(_ProSafeOption):
         else:
             data += struct.pack(">b", 0)
         return data
+    def parse_reply(self, data):
+        if len(data) != 1:
+            raise ProSafeBadPacket("invalid boolean")
+        if data[0] == 0:
+            return False
+        else:
+            return True
+
+class _ProSafeOptionAction(_ProSafeOption):
+    def __init__(self, option_id, option_name, option_desc):
+        _ProSafeOption.__init__(self, option_id, option_name, option_desc)
+    def build_set_packet_data(self):
+        data = struct.pack(">H", 1)
+        data += struct.pack(">b", 1)
+        return data
+    def parse_reply(self, data):
+        raise ProSafeBadPacket("unexpected action option received")
 
 class _ProSafeOptions:
     def __init__(self):
@@ -139,7 +170,9 @@ class _ProSafeOptions:
         else:
             return self.options_by_name[index]
     def define(self, option_id, option_type, option_name, option_desc):
-        if option_type == "string":
+        if option_type == "empty":
+            option_class = _ProSafeOption
+        elif option_type == "string":
             option_class = _ProSafeOptionString
         elif option_type == "mac":
             option_class = _ProSafeOptionMAC
@@ -147,6 +180,10 @@ class _ProSafeOptions:
             option_class = _ProSafeOptionIPv4
         elif option_type == "bool":
             option_class = _ProSafeOptionBoolean
+        elif option_type == "action":
+            option_class = _ProSafeOptionAction
+        else:
+            raise ProSafeException("unknown option type '%s'" % option_type)
         option = option_class(option_id, option_name, option_desc)
         self.options_by_id[option_id] = option
         self.options_by_name[option_name] = option
@@ -155,12 +192,16 @@ class _ProSafeOptions:
 _options_data = [
     [ 0x0001, "string", "model",        "Model" ],
     [ 0x0003, "string", "name",         "Name"  ],
+    [ 0x0004, "mac",    "mac",          "MAC"   ],
     [ 0x0006, "ipv4",   "ipv4addr",     "IPv4 address" ],
     [ 0x0007, "ipv4",   "ipv4netmask",  "IPv4 netmask" ],
     [ 0x0008, "ipv4",   "ipv4gateway",  "IPv4 gateway" ],
+    [ 0x0009, "string", "new_password", "New password" ],
+    [ 0x000a, "string", "password",     "Password" ],
     [ 0x000B, "bool",   "use_dhcp",     "Use DHCP?" ],
     [ 0x000D, "string", "firmware_ver", "Firmware version" ],
-    [ 0xFFFF, "string", "end",          "End of options marker" ],
+    [ 0x0013, "action", "reboot",       "Reboot" ],
+    [ 0xFFFF, "empty",   "end",          "End of options marker" ],
 ]
 nsdp_options = _ProSafeOptions()
 for option in _options_data:
@@ -179,8 +220,9 @@ def _parse_packet(packet):
     parsed["server_mac"] = hw_ntop(packet[14:20])
     # packet[20:22] unknown
     parsed["seq_num"] = struct.unpack(">H", packet[22:24])[0]
-    parsed["protocol"] = packet[24:28].decode()
+    parsed["protocol"] = str(packet[24:28].decode())
     # packet[28:32] unknown
+    options = { }
     pos = 32
     while pos < len(packet):
         if len(packet) - pos < 4:
@@ -191,8 +233,11 @@ def _parse_packet(packet):
         if len(packet) - pos < option_len:
             raise ProSafeBadPacket("Truncated packet")
         option_data = packet[pos:pos+option_len]
-#        option = 
+        opt = nsdp_options[option_id]
+        # TODO: check for option that appears more than once
+        options[opt.option_name] = opt.parse_reply(option_data)
         pos = pos + option_len
+    parsed["options"] = options
     return parsed
 
 class ProSafeDiscover:
@@ -234,7 +279,7 @@ class ProSafeDiscover:
                                self.src_mac_bin, self.dst_mac_bin, self.seq_num)
         options = [ "model", "name", "mac", "ipv4addr", "firmware_ver" ]
         for option in options:
-            packet += nsdp_options["model"].build_query_packet_data()
+            packet += nsdp_options[option].build_query_packet_data()
         packet += nsdp_options["end"].build_query_packet_data()
         self.sock.sendto(packet, ('255.255.255.255', PROSAFE_SEND_PORT))
 
