@@ -6,6 +6,8 @@ http://carnivore.it/2010/07/22/python_-_getifaddrs
 It has been modified.
 """
 
+# TODO: sort addresses 
+
 from ctypes import *
 from sys import platform
 from socket import AF_INET, AF_INET6, inet_ntop
