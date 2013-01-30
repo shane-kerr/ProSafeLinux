@@ -8,6 +8,7 @@ It has been modified.
 
 # TODO: sort addresses 
 
+import struct
 from ctypes import *
 from sys import platform
 from socket import AF_INET, AF_INET6, inet_ntop
@@ -143,6 +144,8 @@ def getifaddrs():
         libc = CDLL("libc.so")
     else:
         libc = CDLL("libc.so.6")
+    libc.getifaddrs.argtypes = [ c_void_p ]
+    libc.freeifaddrs.argtypes = [ c_void_p ]
     ptr = c_void_p(None)
     result = libc.getifaddrs(pointer(ptr))
     if result:
@@ -167,21 +170,25 @@ def getifaddrs():
         if sa.sa_family == AF_INET:
             if ifa.ifa_addr is not None:
                 si = sockaddr_in.from_address(ifa.ifa_addr)
-                data['addr'] = inet_ntop(AF_INET,si.sin_addr)
+                p = string_at(pointer(si.sin_addr), 4)
+                data['addr'] = inet_ntop(AF_INET,p)
             if ifa.ifa_netmask is not None:
                 si = sockaddr_in.from_address(ifa.ifa_netmask)
-                data['netmask'] = inet_ntop(AF_INET,si.sin_addr)
+                p = string_at(pointer(si.sin_addr), 4)
+                data['netmask'] = inet_ntop(AF_INET,p)
             addr_type = 'ipv4'
  
         if sa.sa_family == AF_INET6:
             if ifa.ifa_addr is not None:
                 si = sockaddr_in6.from_address(ifa.ifa_addr)
-                data['addr'] = inet_ntop(AF_INET6,si.sin6_addr)
+                p = string_at(pointer(si.sin6_addr), 16)
+                data['addr'] = inet_ntop(AF_INET6,p)
                 if data['addr'].startswith('fe80:'):
                     data['scope'] = si.sin6_scope_id
             if ifa.ifa_netmask is not None:
                 si = sockaddr_in6.from_address(ifa.ifa_netmask)
-                data['netmask'] = inet_ntop(AF_INET6,si.sin6_addr)
+                p = string_at(pointer(si.sin6_addr), 16)
+                data['netmask'] = inet_ntop(AF_INET6,p)
             addr_type = 'ipv6'
  
         if sa.sa_family == AF_PACKET:
