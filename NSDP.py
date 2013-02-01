@@ -57,8 +57,10 @@ def hw_pton(mac):
     return binascii.unhexlify(mac_bytes)
 
 def hw_ntop(mac):
-    # XXX: check type? at least document... byte[] / str /...
-    assert(len(mac) == 6)
+    """Convert a binary MAC address into a printable format.
+    Input is a string in Python 2 or an array of bytes in Python 3."""
+    if len(mac) != 6:
+        raise ValueError("binary MAC addresses must be 6 bytes long")
     mac_bytes = binascii.hexlify(mac)
     mac_bytes = mac_bytes[0:2] + b':' + mac_bytes[2:4] + b':' + \
                 mac_bytes[4:6] + b':' + mac_bytes[6:8] + b':' + \
@@ -200,7 +202,7 @@ _options_data = [
     [ 0x000B, "bool",   "use_dhcp",     "Use DHCP?" ],
     [ 0x000D, "string", "firmware_ver", "Firmware version" ],
     [ 0x0013, "action", "reboot",       "Reboot" ],
-    [ 0xFFFF, "empty",   "end",          "End of options marker" ],
+    [ 0xFFFF, "empty",   "end",         "End of options marker" ],
 ]
 nsdp_options = _NSDPOptions()
 for option in _options_data:
@@ -285,7 +287,7 @@ class DiscoverNSDP:
     def recv(self):
         # loop here chucking out packets that are not for us...
         # bad seq_num, msg_type, ...?
-        (rlist, wlist, xlist) = select.select([self.sock], [], [], 1)
+        (rlist, wlist, xlist) = select.select([self.sock], [], [], 0)
         if self.sock in rlist:
             (data, srcaddr) = self.sock.recvfrom(8192)
             return _parse_packet(data)
