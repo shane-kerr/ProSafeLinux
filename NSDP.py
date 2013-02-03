@@ -46,7 +46,12 @@ NSDP_MSG_QUERY_RESPONSE = 0x0102
 NSDP_MSG_SET_REQUEST    = 0x0103
 NSDP_MSG_SET_RESPONSE   = 0x0104
 
+# TODO: possibly we should support 0-compression, 
+#       like: 1:2:3:4:5:6 instead of 01:02:03:04:05:06
 def hw_pton(mac):
+    """Convert a printable MAC address into a binary format."""
+    if not hasattr(mac, "strip"):
+        raise TypeError()
     clean_mac = mac.strip().lower()
     mac_bytes = clean_mac.encode()
     if re.search(r'^([0-9a-f]{2}:){5}[0-9a-f]{2}$', clean_mac):
