@@ -13,6 +13,10 @@ There are two classes:
 
   * NSDP is used to query individual ProSafe switches, to set the
     configuration on them, or to execute actions (like reboot).
+
+The general approach is to use DiscoverNSDP to find one or more
+switches, and then to create a session for each by instantiating an 
+NSDP object.
 """
 
 import getifaddrs
@@ -73,12 +77,20 @@ def hw_ntop(mac):
     return str(mac_bytes.decode())
 
 def _build_header(msg_type, srcmac, dstmac, seq_num):
-    header = struct.pack(">h", msg_type)
+    """Make the header of NSDP packet"""
+    assert(msg_type in [ NSDP_MSG_QUERY_REQUEST, NSDP_MSG_QUERY_RESPONSE,
+                         NSDP_MSG_SET_REQUEST, NSDP_MSG_SET_RESPONSE ] )
+    assert(type(srcmac) is bytes)
+    assert(len(srcmac) == 6)
+    assert(type(dstmac) is bytes)
+    assert(len(dstmac) == 6)
+    assert((seq_num >= 0) and (seq_num <= 0xffff))
+    header = struct.pack(">H", msg_type)
     header += b'\x00' * 6
     header += srcmac
     header += dstmac
     header += b'\x00' * 2
-    header += struct.pack(">h", seq_num)
+    header += struct.pack(">H", seq_num)
     header += b'NSDP' 
     header += b'\x00' * 4
     return header
@@ -267,7 +279,9 @@ class DiscoverNSDP:
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-        self.sock.bind(('255.255.255.255', NSDP_RECV_PORT))
+        # XXX: check that this works...
+#        self.sock.bind(('255.255.255.255', NSDP_RECV_PORT))
+        self.sock.bind((self.ip, NSDP_RECV_PORT))
 
         self.seq_num = None
 
@@ -299,13 +313,4 @@ class DiscoverNSDP:
 
 class NSDP:
     pass
-
-# TODO tests!
-#hw_pton('sdf') -> fail
-#hw_pton('20:cf:30:70:f2:db') -> work
-#hw_pton('20cf3070f2db') -> work
-#hw_pton('    20CF3070f2Db') -> work
-#hw_pton('    20CF3  070f2Db') -> fail
-#hw_pton('00') -> fail
-#hw_pton('') -> fail
 

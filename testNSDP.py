@@ -1,6 +1,7 @@
 import NSDP
 import unittest
 import sys
+import struct
 
 class TestMACFuncs(unittest.TestCase):
     def test_hw_ntop(self):
@@ -73,6 +74,65 @@ class TestMACFuncs(unittest.TestCase):
             mac_str = NSDP.hw_pton("00:00:00:00:00:0")
         with self.assertRaises(ValueError):
             mac_str = NSDP.hw_pton("00:00:00:00:0000")
-            
+
+class TestPacketBuilding(unittest.TestCase):
+    def test_build_header(self):
+        # test each allowed message type
+        for msg_type in [ NSDP.NSDP_MSG_QUERY_REQUEST, 
+                          NSDP.NSDP_MSG_QUERY_RESPONSE,
+                          NSDP.NSDP_MSG_SET_REQUEST, 
+                          NSDP.NSDP_MSG_SET_RESPONSE ]:
+            query_req = struct.pack(">H", msg_type)
+            header = NSDP._build_header(msg_type, b'abcdef', b'ghijkl', 0x5678)
+            self.assertEqual(header, query_req + b'\x00' * 6 + 
+                                     b'abcdefghijkl' + 
+                                     b'\x00\x00\x56\x78NSDP' + b'\x00' * 4)
+        # insure we don't allow other message types
+        with self.assertRaises(AssertionError):
+            NSDP._build_header(0x0000, b'abcdef', b'ghijkl', 0x5678)
+        with self.assertRaises(AssertionError):
+            NSDP._build_header(0x0001, b'abcdef', b'ghijkl', 0x5678)
+        with self.assertRaises(AssertionError):
+            NSDP._build_header(0x0401, b'abcdef', b'ghijkl', 0x5678)
+        with self.assertRaises(AssertionError):
+            NSDP._build_header(0xffff, b'abcdef', b'ghijkl', 0x5678)
+        with self.assertRaises(AssertionError):
+            NSDP._build_header(-1, b'abcdef', b'ghijkl', 0x5678)
+        with self.assertRaises(AssertionError):
+            NSDP._build_header('hello', b'abcdef', b'ghijkl', 0x5678)
+        with self.assertRaises(AssertionError):
+            NSDP._build_header([11,], b'abcdef', b'ghijkl', 0x5678)
+        # verify we break on bogus MAC addresses
+        msg_req = NSDP.NSDP_MSG_QUERY_REQUEST
+        for bogus in [ 123, b'', b'x', b'y' * 7, b'z' * 500 ]:
+            with self.assertRaises(AssertionError):
+                NSDP._build_header(msg_req, bogus, b'ghijkl', 0x5678)
+            with self.assertRaises(AssertionError):
+                NSDP._build_header(msg_req, b'ghijkl', bogus, 0x5678)
+            with self.assertRaises(AssertionError):
+                NSDP._build_header(msg_req, bogus, bogus, 0x5678)
+        # verify that our sequence number is checked
+        msg_req = NSDP.NSDP_MSG_QUERY_REQUEST
+        with self.assertRaises(AssertionError):
+            NSDP._build_header(msg_type, b'abcdef', b'ghijkl', -1)
+        with self.assertRaises(AssertionError):
+            NSDP._build_header(msg_type, b'abcdef', b'ghijkl', 65536)
+        with self.assertRaises(AssertionError):
+            NSDP._build_header(msg_type, b'abcdef', b'ghijkl', 'xxx')
+        # verify that we can use numbers in the allowed range
+        for seq_num in [ 0, 1, 0xf, 0x10, 0xff, 0x100, 0xfff, 0x1000, 0xffff ]:
+            packed_seq_num = struct.pack(">H", seq_num)
+            header = NSDP._build_header(msg_type, b'abcdef', b'ghijkl', seq_num)
+            self.assertEqual(header, query_req + b'\x00' * 6 + 
+                                     b'abcdefghijkl\x00\x00' + packed_seq_num +
+                                     b'NSDP' + b'\x00' * 4)
+
+
+class TestPacketParsing(unittest.TestCase):
+    pass
+
+class TestDiscoverNSDP(unittest.TestCase):
+    pass
+
 if __name__ == '__main__':
     unittest.main()
