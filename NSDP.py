@@ -84,6 +84,7 @@ def _build_header(msg_type, srcmac, dstmac, seq_num):
     assert(len(srcmac) == 6)
     assert(type(dstmac) is bytes)
     assert(len(dstmac) == 6)
+    assert(type(seq_num) is int)
     assert((seq_num >= 0) and (seq_num <= 0xffff))
     header = struct.pack(">H", msg_type)
     header += b'\x00' * 6
@@ -275,13 +276,20 @@ class DiscoverNSDP:
 
         self.src_mac_bin = hw_pton(self.mac)
         self.dst_mac_bin = hw_pton('00:00:00:00:00:00')
+        
+        # we need to bind to the address on the interface to insure
+        # that we send from the correct interface
+        self.send_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.send_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.send_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        self.send_sock.bind((self.ip, NSDP_RECV_PORT))
 
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-        # XXX: check that this works...
-#        self.sock.bind(('255.255.255.255', NSDP_RECV_PORT))
-        self.sock.bind((self.ip, NSDP_RECV_PORT))
+        # we also need to bind to the broadcast address to receive 
+        # broadcast packets, apparently
+        self.recv_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.recv_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.recv_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        self.recv_sock.bind(('255.255.255.255', NSDP_RECV_PORT))
 
         self.seq_num = None
 
@@ -294,22 +302,24 @@ class DiscoverNSDP:
         self._setup(ifaddrs[interface_name])
 
     def send(self):
-        self.seq_num = struct.unpack("h", rand_bytes(2))[0]
+        self.seq_num = struct.unpack("H", rand_bytes(2))[0]
         packet = _build_header(NSDP_MSG_QUERY_REQUEST, 
                                self.src_mac_bin, self.dst_mac_bin, self.seq_num)
         options = [ "model", "name", "mac", "ipv4addr", "firmware_ver" ]
         for option in options:
             packet += nsdp_options[option].build_query_packet_data()
         packet += nsdp_options["end"].build_query_packet_data()
-        self.sock.sendto(packet, ('255.255.255.255', NSDP_SEND_PORT))
+        self.send_sock.sendto(packet, ('255.255.255.255', NSDP_SEND_PORT))
 
     def recv(self):
         # loop here chucking out packets that are not for us...
         # bad seq_num, msg_type, ...?
-        (rlist, wlist, xlist) = select.select([self.sock], [], [], 0)
-        if self.sock in rlist:
-            (data, srcaddr) = self.sock.recvfrom(8192)
+        (rlist, wlist, xlist) = select.select([self.recv_sock], [], [], 0)
+        if self.recv_sock in rlist:
+            (data, srcaddr) = self.recv_sock.recvfrom(8192)
             return _parse_packet(data)
+        else:
+            return None
 
 class NSDP:
     pass

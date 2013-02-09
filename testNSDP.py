@@ -127,12 +127,23 @@ class TestPacketBuilding(unittest.TestCase):
                                      b'abcdefghijkl\x00\x00' + packed_seq_num +
                                      b'NSDP' + b'\x00' * 4)
 
+    def testQueryPacketData(self):
+        # basic option type
+        opt = NSDP._NSDPOption(1, 'name', 'desc')
+        data = opt.build_query_packet_data()
+        self.assertEqual(data, b'\x00\x01\x00\x00')
+        # all options use the same code to build query
+
+class TestOptionDefinition(unittest.TestCase):
+    pass
 
 class TestPacketParsing(unittest.TestCase):
     pass
 
 class TestDiscoverNSDP(unittest.TestCase):
     pass
+
+# TODO: test option id/name/desc
 
 if __name__ == '__main__':
     unittest.main()

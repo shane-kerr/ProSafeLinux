@@ -1,0 +1,93 @@
+Introduction
+------------
+The Netgear ProSafe switches are managed by a proprietary protocol,
+NSDP (the Netgear Switch Discovery Protcol). Netgear provides only
+Windows software.
+
+Some folks have reverse-engineered the protocol, and built software to
+manage the switches. This project builds on their work, providing:
+
+1. A text-mode graphical interface: prosafe
+2. A command-line interface: prosafe-cli
+3. Libraries used by these, which can also be used independently
+
+Installation
+------------
+The software is pure Python, so only a Python interpreter is needed.
+It should work with Python 2.6 or later, including all versions of
+Python 3. pypy is also supported.
+
+You can copy the files anywhere and run directly from there.
+
+Because the software needs to use the network interfaces directly,
+there is some non-portable code. Currently Linux or FreeBSD are known
+to work, although all BSD-like systems should work (including OpenBSD,
+NetBSD, and Mac OS X). Windows and Solaris will definitely not work.
+
+
+Running the Text-Mode Graphical Interface
+-----------------------------------------
+To start the text-mode graphical interface, run the prosafe command:
+
+$ prosafe
+
+You can also use a different Python interpreter, like "python3" or
+"pypy".
+
+The software will detect the interfaces available, and try to detect
+any ProSafe switches on all of them that have a MAC address and an
+IPv4 address.
+
+To view the details about an individual switch, use the arrow keys to
+select that switch, then press Enter. You will then have a screen
+listing all of settings.
+
+Changes can be made by updating the values and then choosing "Save".
+
+
+Running the Command-Line Interface
+----------------------------------
+The command-line interface can show all available switches:
+
+$ prosafe-cli discover
+
+To see the settings of switches, use the query command:
+
+$ prosafe-cli query
+
+To see all the settings for a particular switch, query by IPv4
+address, MAC address, or switch name:
+
+$ prosafe-cli query --ip=198.51.100.254
+$ prosafe-cli query --mac=20:cf:30:70:f2:db
+$ prosafe-cli query --name=myswitch
+
+To see a particular setting, you can specify that afterwords:
+
+$ prosafe-cli query use_dhcp
+$ prosafe-cli query model firmware_ver 
+
+To change a setting, use the set command:
+
+$ prosafe-cli set name=lorum
+$ prosafe-cli set ipv4addr=203.0.113.2 ipv4netmask=255.255.255.0
+
+
+Using the Library
+-----------------
+The source code contains full documentation, but simple use works like
+this:
+
+    import NSDP
+    
+    for switch in NSDP.findall():
+        # display the name and IPv4 address for each switch
+        name = switch.query("name")
+        ipv4addr = switch.query("ipv4addr")
+        print("Switch %s has IPv4 address %s" % (name, ipv4addr))
+        # change name temporarily
+        switch.set("name", "test-name")
+        # restore original name
+        switch.set("name", name)
+
+Shane Kerr <shane@isc.org>
