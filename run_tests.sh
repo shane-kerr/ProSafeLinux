@@ -1,6 +1,6 @@
 #! /bin/sh
 
-PYTHON_VERSIONS="python2.7 python3.1 python3.2 pypy"
+PYTHON_VERSIONS="python2.7 python3.1 python3.2 python3.3 pypy"
 TEST_SCRIPTS="testNSDP.py"
 
 for PYTHON_VERSION in $PYTHON_VERSIONS; do

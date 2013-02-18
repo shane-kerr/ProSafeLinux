@@ -89,6 +89,7 @@ class TestOptionDefinition(unittest.TestCase):
         with self.assertRaises(NSDP.NSDPException):
             options.define(0x9999, "bad_type", "name", "desc")
         opt = options.define(0x0001, "empty", "alpha", "description a")
+        self.assertIsInstance(opt, NSDP._NSDPOption)
         self.assertEqual(opt.option_id, 0x0001)
         self.assertEqual(opt.option_name, "alpha")
         self.assertEqual(opt.option_desc, "description a")
@@ -96,6 +97,36 @@ class TestOptionDefinition(unittest.TestCase):
         self.assertIs(opt, check_opt)
         check_opt = options["alpha"]
         self.assertIs(opt, check_opt)
+    def test_types(self):
+        options = NSDP._NSDPOptions()
+        opt = options.define(0x0002, "string", "beta", "description b")
+        self.assertIsInstance(opt, NSDP._NSDPOptionString)
+        self.assertEqual(opt.option_id, 0x0002)
+        self.assertEqual(opt.option_name, "beta")
+        self.assertEqual(opt.option_desc, "description b")
+        opt = options.define(0x0003, "mac", "gamma", "description g")
+        self.assertIsInstance(opt, NSDP._NSDPOptionMAC)
+        self.assertEqual(opt.option_id, 0x0003)
+        self.assertEqual(opt.option_name, "gamma")
+        self.assertEqual(opt.option_desc, "description g")
+        opt = options.define(0x0004, "ipv4", "delta", "description d")
+        self.assertIsInstance(opt, NSDP._NSDPOptionIPv4)
+        self.assertEqual(opt.option_id, 0x0004)
+        self.assertEqual(opt.option_name, "delta")
+        self.assertEqual(opt.option_desc, "description d")
+        opt = options.define(0x0005, "bool", "epsilon", "description e")
+        self.assertIsInstance(opt, NSDP._NSDPOptionBoolean)
+        self.assertEqual(opt.option_id, 0x0005)
+        self.assertEqual(opt.option_name, "epsilon")
+        self.assertEqual(opt.option_desc, "description e")
+        opt = options.define(0x0006, "action", "zeta", "description z")
+        self.assertIsInstance(opt, NSDP._NSDPOptionAction)
+        self.assertEqual(opt.option_id, 0x0006)
+        self.assertEqual(opt.option_name, "zeta")
+        self.assertEqual(opt.option_desc, "description z")
+        with self.assertRaises(NSDP.NSDPException):
+            opt = options.define(0x0007, "bogus", "eta", "description i")
+        
 
 class TestPacketBuilding(unittest.TestCase):
     def test_build_header(self):
@@ -149,16 +180,15 @@ class TestPacketBuilding(unittest.TestCase):
                                      b'abcdefghijkl\x00\x00' + packed_seq_num +
                                      b'NSDP' + b'\x00' * 4)
 
-
     def testQueryPacketData(self):
         # basic option type
         opt = NSDP._NSDPOption(1, 'name', 'desc')
         data = opt.build_query_packet_data()
         self.assertEqual(data, b'\x00\x01\x00\x00')
         # all options use the same code to build query
-#        for option in NSDP._options_data:
-#            data = option.build_query_packet_data()
-#            self.assertEqual(data, struct.pack(">H", msg_type) + b'\x00\x00')
+        for (msg_type, option) in NSDP.nsdp_options.options_by_id.items():
+            data = option.build_query_packet_data()
+            self.assertEqual(data, struct.pack(">H", msg_type) + b'\x00\x00')
 
 class TestPacketParsing(unittest.TestCase):
     pass
