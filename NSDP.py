@@ -105,7 +105,7 @@ class _NSDPOption:
         data = struct.pack(">H", self.option_id)
         data += struct.pack(">H", 0)
         return data
-    def build_set_packet_data(self):
+    def build_set_packet_data(self, dummy):
         data = struct.pack(">H", self.option_id)
         data += struct.pack(">H", 0)
         return data
@@ -172,11 +172,11 @@ class _NSDPOptionBoolean(_NSDPOption):
 class _NSDPOptionAction(_NSDPOption):
     def __init__(self, option_id, option_name, option_desc):
         _NSDPOption.__init__(self, option_id, option_name, option_desc)
-    def build_set_packet_data(self):
+    def build_set_packet_data(self, dummy):
         data = struct.pack(">H", 1)
         data += struct.pack(">b", 1)
         return data
-    def parse_reply(self, data):
+    def parse_reply(self, dummy):
         raise NSDPBadPacket("unexpected action option received")
 
 class _NSDPOptions:
@@ -223,8 +223,8 @@ _options_data = [
     [ 0xFFFF, "empty",   "end",         "End of options marker" ],
 ]
 nsdp_options = _NSDPOptions()
-for option in _options_data:
-    nsdp_options.define(option[0], option[1], option[2], option[3])
+for def_opt in _options_data:
+    nsdp_options.define(def_opt[0], def_opt[1], def_opt[2], def_opt[3])
 
 def _parse_packet(packet):
     if len(packet) < 24:
