@@ -75,6 +75,28 @@ class TestMACFuncs(unittest.TestCase):
         with self.assertRaises(ValueError):
             mac_str = NSDP.hw_pton("00:00:00:00:0000")
 
+class TestOptionDefinition(unittest.TestCase):
+    def test_options_class(self):
+        options = NSDP._NSDPOptions()
+        self.assertEqual(options.options_by_id, { })
+        self.assertEqual(options.options_by_name, { })
+    def test_def_and_get(self):
+        options = NSDP._NSDPOptions()
+        with self.assertRaises(KeyError):
+            options['does_not_exist']
+        with self.assertRaises(KeyError):
+            options[11]
+        with self.assertRaises(NSDP.NSDPException):
+            options.define(0x9999, "bad_type", "name", "desc")
+        opt = options.define(0x0001, "empty", "alpha", "description a")
+        self.assertEqual(opt.option_id, 0x0001)
+        self.assertEqual(opt.option_name, "alpha")
+        self.assertEqual(opt.option_desc, "description a")
+        check_opt = options[0x0001]
+        self.assertIs(opt, check_opt)
+        check_opt = options["alpha"]
+        self.assertIs(opt, check_opt)
+
 class TestPacketBuilding(unittest.TestCase):
     def test_build_header(self):
         # test each allowed message type
@@ -127,15 +149,16 @@ class TestPacketBuilding(unittest.TestCase):
                                      b'abcdefghijkl\x00\x00' + packed_seq_num +
                                      b'NSDP' + b'\x00' * 4)
 
+
     def testQueryPacketData(self):
         # basic option type
         opt = NSDP._NSDPOption(1, 'name', 'desc')
         data = opt.build_query_packet_data()
         self.assertEqual(data, b'\x00\x01\x00\x00')
         # all options use the same code to build query
-
-class TestOptionDefinition(unittest.TestCase):
-    pass
+#        for option in NSDP._options_data:
+#            data = option.build_query_packet_data()
+#            self.assertEqual(data, struct.pack(">H", msg_type) + b'\x00\x00')
 
 class TestPacketParsing(unittest.TestCase):
     pass
