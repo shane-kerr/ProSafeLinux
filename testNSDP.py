@@ -2,6 +2,7 @@ import NSDP
 import unittest
 import sys
 import struct
+import socket
 
 class TestMACFuncs(unittest.TestCase):
     def test_hw_ntop(self):
@@ -193,8 +194,43 @@ class TestPacketBuilding(unittest.TestCase):
 class TestPacketParsing(unittest.TestCase):
     pass
 
+def mock_getifaddrs():
+    return { "fake0": {
+                  "ipv4": [{"netmask":"255.0.0.0", "addr": "127.0.0.1"}],
+                  "hw": [{"addr":"48:5d:60:2a:dd:50"}],
+              },
+             "fake1": {
+              },
+             "fake2": {
+                  "hw": [{"addr":"48:5d:60:2a:dd:50"}],
+              }
+           }
+
 class TestDiscoverNSDP(unittest.TestCase):
-    pass
+    def testInit(self):
+        save_getifaddrs = NSDP.getifaddrs.getifaddrs
+        NSDP.getifaddrs.getifaddrs = mock_getifaddrs
+        try:
+            # check normal setup
+            d = NSDP.DiscoverNSDP('fake0')
+            self.assertEqual(d.mac, "48:5d:60:2a:dd:50")
+            self.assertEqual(d.ip, "127.0.0.1")
+            self.assertEqual(d.src_mac_bin, b"\x48\x5D\x60\x2A\xDD\x50")
+            self.assertEqual(d.dst_mac_bin, b"\x00" * 6)
+            self.assertIsInstance(d.send_sock, socket.socket)
+            self.assertIsInstance(d.recv_sock, socket.socket)
+            # check various invalid values
+            with self.assertRaises(NSDP.NSDPInterfaceNotFound):
+                NSDP.DiscoverNSDP('bogus0')
+            with self.assertRaises(NSDP.NSDPInterfaceNoMACAddress):
+                NSDP.DiscoverNSDP('fake1')
+            with self.assertRaises(NSDP.NSDPInterfaceNoIPv4Address):
+                NSDP.DiscoverNSDP('fake2')
+        except:
+            NSDP.getifaddrs.getifaddrs = save_getifaddrs
+            raise
+
+# TODO: missing interface
 
 # TODO: test option id/name/desc
 
