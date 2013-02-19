@@ -296,10 +296,18 @@ class DiscoverNSDP:
     def __init__(self, interface_name): 
         """
         """
+        self.send_sock = None
+        self.recv_sock = None
         ifaddrs = getifaddrs.getifaddrs()
         if not interface_name in ifaddrs:
             raise NSDPInterfaceNotFound()
         self._setup(ifaddrs[interface_name])
+
+    def __del__(self):
+        if self.recv_sock:
+            self.recv_sock.close()
+        if self.send_sock:
+            self.send_sock.close()
 
     def send(self):
         self.seq_num = struct.unpack("H", rand_bytes(2))[0]
